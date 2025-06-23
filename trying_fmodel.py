@@ -80,7 +80,7 @@ from pydantic import BaseModel, RootModel, ValidationError
 # ============================================================================
 
 # API Configuration
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")  # Set your API key here or in environment
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "API")  # Set your API key here or in environment
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
 # Model configurations
