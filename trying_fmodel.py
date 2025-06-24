@@ -80,7 +80,7 @@ from pydantic import BaseModel, RootModel, ValidationError
 # ============================================================================
 
 # API Configuration
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "API")  # Set your API key here or in environment
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")  # Set your API key here or in environment
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
 # Model configurations
@@ -995,4 +995,653 @@ if __name__ == "__main__":
     print("\n" + "="*80)
     print("🎉 FINANCIAL RAG PIPELINE COMPLETE!")
     print("="*80)
+
+pip install pdfplumber PyPDF2
+
+# prompt: convert m,y pdf into txt files
+
+!pip install pdfplumber PyPDF2
+import pdfplumber
+import os
+
+def pdf_to_text(pdf_path: str, output_dir: str) -> None:
+    """
+    Convert a PDF file to a text file.
+
+    Args:
+        pdf_path: Path to the input PDF file.
+        output_dir: Directory to save the output text file.
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    base_name = os.path.basename(pdf_path)
+    name, _ = os.path.splitext(base_name)
+    output_path = os.path.join(output_dir, f"{name}.txt")
+
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            text = ''
+            for page in pdf.pages:
+                text += page.extract_text() + '\n'
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(text)
+        print(f"✅ Converted '{pdf_path}' to '{output_path}'")
+
+    except FileNotFoundError:
+        print(f"❌ Error: PDF file not found at '{pdf_path}'")
+    except Exception as e:
+        print(f"❌ Error converting '{pdf_path}': {e}")
+
+# Example usage:
+pdf_files_to_convert = [
+    "SEC_Apple_10k.pdf",
+    "Q1-2025 Transcript AAPL.pdf"
+]
+output_text_directory = "converted_text_files"
+
+# Make sure the PDF files exist or upload them first
+# For demonstration, let's assume they exist or create dummy files
+for pdf_path in pdf_files_to_convert:
+    if not os.path.exists(pdf_path):
+        print(f"Creating dummy PDF: {pdf_path}")
+        with open(pdf_path, 'w') as f:
+            f.write(f"%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Contents 4 0 R/Parent 2 0 R>>endobj\n4 0 obj<</Length 55>>stream\nBT\n72 712 Td\n({pdf_path} Sample Text) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000101 00000 n\n0000000193 00000 n\ntrailer<</Size 5/Root 1 0 R>>startxref\n251\n%%EOF")
+
+
+# Convert each PDF
+for pdf_file in pdf_files_to_convert:
+    pdf_to_text(pdf_file, output_text_directory)
+
+# List converted files
+print(f"\nListing files in '{output_text_directory}':")
+!ls {output_text_directory}
+
+# Enhanced Text File Transcript Analyzer
+import os
+import json
+import re
+import time
+from typing import List, Dict, Optional, Tuple, Any
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# Core libraries
+import pandas as pd
+import numpy as np
+
+# ML/NLP libraries (optional - remove if not needed)
+try:
+    from sentence_transformers import SentenceTransformer
+    import tiktoken
+except ImportError:
+    print("⚠️  ML libraries not available (sentence_transformers, tiktoken)")
+
+# LangChain components (optional - remove if not needed)
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter
+    from langchain.vectorstores import FAISS
+    from langchain.embeddings import HuggingFaceEmbeddings
+    from langchain.docstore.document import Document
+except ImportError:
+    print("⚠️  LangChain libraries not available")
+
+# Groq API
+from groq import Groq
+
+# ============================================================================
+# TEXT FILE PROCESSING
+# ============================================================================
+
+def load_text_file(file_path: str) -> str:
+    """
+    Load text from file with encoding detection.
+
+    Args:
+        file_path: Path to text file
+
+    Returns:
+        Text content as string
+    """
+    print(f"📖 Loading text file: {file_path}")
+
+    # Try different encodings
+    encodings = ['utf-8', 'utf-16', 'latin-1', 'cp1252']
+
+    for encoding in encodings:
+        try:
+            with open(file_path, 'r', encoding=encoding) as f:
+                text = f.read()
+            print(f"✅ Successfully loaded with {encoding} encoding")
+            print(f"📄 Text length: {len(text):,} characters")
+            return text
+        except UnicodeDecodeError:
+            continue
+        except Exception as e:
+            print(f"❌ Error with {encoding}: {e}")
+            continue
+
+    raise ValueError(f"Could not read file {file_path} with any supported encoding")
+
+def clean_transcript_text(text: str) -> str:
+    """
+    Clean and format transcript text.
+
+    Args:
+        text: Raw transcript text
+
+    Returns:
+        Cleaned text
+    """
+    print("🧹 Cleaning transcript text...")
+
+    # Remove excessive whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'[ \t]+', ' ', text)
+
+    # Remove page numbers (common pattern: just numbers on their own line)
+    text = re.sub(r'\n\d+\n', '\n', text)
+
+    # Remove common transcript artifacts
+    text = re.sub(r'\[inaudible.*?\]', '[inaudible]', text, flags=re.IGNORECASE)
+    text = re.sub(r'\(TECHNICAL DIFFICULTIES\)', '', text, flags=re.IGNORECASE)
+
+    # Fix common OCR/formatting errors in financial transcripts
+    text = re.sub(r'\$(\d)', r'$\1', text)  # Fix dollar signs
+    text = re.sub(r'(\d),(\d)', r'\1,\2', text)  # Fix number formatting
+
+    # Remove extra spaces around punctuation
+    text = re.sub(r'\s+([,.!?;:])', r'\1', text)
+    text = re.sub(r'([.!?])\s+', r'\1 ', text)
+
+    print("✅ Text cleaning completed")
+    return text.strip()
+
+def save_text_to_file(text: str, output_path: str) -> None:
+    """Save text to file"""
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    print(f"💾 Text saved to: {output_path}")
+
+# ============================================================================
+# TRANSCRIPT ANALYSIS COMPONENTS
+# ============================================================================
+
+def identify_transcript_sections(text: str) -> Dict[str, str]:
+    """
+    Identify and extract key sections from earnings transcript.
+
+    Args:
+        text: Full transcript text
+
+    Returns:
+        Dictionary of sections
+    """
+    print("🔍 Identifying transcript sections...")
+
+    sections = {}
+
+    # Common section markers in earnings transcripts
+    section_patterns = {
+        "corporate_participants": r"Corporate Participants|Company Participants",
+        "conference_call_participants": r"Conference Call Participants|Call Participants",
+        "presentation": r"Presentation|Prepared Remarks|Management Discussion|Opening Remarks",
+        "questions_and_answers": r"Questions and Answers|Q&A|Question-and-Answer Session",
+        "operator": r"Operator",
+        "forward_looking": r"Forward-Looking|Safe Harbor|Disclaimer"
+    }
+
+    # Split text by sections
+    section_positions = []
+
+    for section_name, pattern in section_patterns.items():
+        matches = list(re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE))
+        for match in matches:
+            section_positions.append((match.start(), section_name, match.group()))
+
+    # Sort by position
+    section_positions.sort(key=lambda x: x[0])
+
+    # Extract sections
+    for i, (pos, name, matched_text) in enumerate(section_positions):
+        start_pos = pos
+        end_pos = section_positions[i + 1][0] if i + 1 < len(section_positions) else len(text)
+
+        section_text = text[start_pos:end_pos].strip()
+        if len(section_text) > 100:  # Only include substantial sections
+            sections[name] = section_text
+
+    # If no clear sections found, try to identify Q&A by looking for question patterns
+    if not sections:
+        print("⚠️  No standard sections found, attempting alternative detection...")
+
+        # Look for Q&A patterns
+        qa_patterns = [
+            r"(Question|Q\d+|Analyst|Next question)",
+            r"(Thank you.*question)",
+            r"(Your next question)",
+            r"(\w+\s+Analyst)"
+        ]
+
+        qa_matches = []
+        for pattern in qa_patterns:
+            qa_matches.extend(list(re.finditer(pattern, text, re.IGNORECASE)))
+
+        if qa_matches:
+            qa_start = min(match.start() for match in qa_matches)
+            sections["presentation"] = text[:qa_start].strip()
+            sections["questions_and_answers"] = text[qa_start:].strip()
+        else:
+            sections["full_transcript"] = text
+
+    print(f"✅ Found {len(sections)} sections: {list(sections.keys())}")
+    return sections
+
+def extract_key_speakers(text: str) -> List[str]:
+    """Extract key speakers from transcript"""
+    print("👥 Extracting key speakers...")
+
+    # Look for speaker patterns: "Name, Title" or "Name --" or "Name:"
+    speaker_patterns = [
+        r'^([A-Z][a-z]+ [A-Z][a-z]+),?\s+(?:Chief|President|CEO|CFO|Director|VP|Vice President)',
+        r'^([A-Z][a-z]+ [A-Z][a-z]+)\s*(?:--|\:)',
+        r'^([A-Z][A-Z\s]+)\s*(?:--|\:)',  # All caps names
+        r'([A-Z][a-z]+ [A-Z][a-z]+)\s*,\s*(?:Analyst|Research)',
+        r'([A-Z][a-z]+ [A-Z][a-z]+)\s+Analyst'
+    ]
+
+    speakers = set()
+    lines = text.split('\n')
+
+    for line in lines:
+        line = line.strip()
+        if len(line) < 5 or len(line) > 100:  # Skip very short or very long lines
+            continue
+
+        for pattern in speaker_patterns:
+            match = re.search(pattern, line)
+            if match:
+                speaker = match.group(1).strip()
+                # Filter out common false positives
+                if (len(speaker) > 3 and
+                    speaker not in ['THE', 'AND', 'FOR', 'WITH', 'THIS', 'THAT'] and
+                    not speaker.isdigit()):
+                    speakers.add(speaker)
+
+    speaker_list = list(speakers)
+    print(f"✅ Found {len(speaker_list)} speakers")
+    return speaker_list
+
+def setup_groq_client() -> Groq:
+    """Initialize Groq client"""
+    # You can set your API key here or use environment variable
+    api_key = os.getenv("GROQ_API_KEY", "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")
+
+    if not api_key:
+        raise ValueError("GROQ_API_KEY not set! Please set your Groq API key.")
+
+    try:
+        client = Groq(api_key=api_key)
+        # Test connection with a simple request
+        test_response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=10,
+            temperature=0
+        )
+        print("✅ Groq API connection verified")
+        return client
+    except Exception as e:
+        raise ValueError(f"Groq API setup failed: {e}")
+
+def analyze_transcript_with_llm(text: str, analysis_type: str, groq_client: Groq) -> str:
+    """
+    Analyze transcript using LLM.
+
+    Args:
+        text: Transcript text (or section)
+        analysis_type: Type of analysis to perform
+        groq_client: Groq client instance
+
+    Returns:
+        Analysis results
+    """
+
+    prompts = {
+        "summary":f"""
+Provide a concise summary of this earnings call transcript. Focus on:
+1. Key financial highlights and metrics mentioned
+2. Major business updates and strategic initiatives
+3. Management's outlook and guidance
+4. Important Q&A topics and analyst concerns
+
+Keep the summary under 400 words and highlight the most important points.
+
+Transcript:
+{text}
+
+Summary:""",
+
+        "financial_insights":f"""
+Extract key financial insights from this earnings call transcript. Focus on:
+1. Revenue, profit, and growth metrics mentioned with specific numbers
+2. Guidance for future quarters/years
+3. Key performance indicators (KPIs) discussed
+4. Any financial concerns or positive developments mentioned
+5. Comparisons to previous periods
+6. Market segment performance
+
+Format as clear bullet points with specific numbers where mentioned.
+
+Transcript:
+{text}
+
+Financial Insights:""",
+
+        "sentiment_analysis":f"""
+Analyze the overall sentiment and tone of this earnings call transcript. Consider:
+1. Management's confidence level and tone
+2. Market concerns raised by analysts in Q&A
+3. Positive vs. negative themes throughout the call
+4. Forward-looking optimism or caution expressed
+5. Any notable tensions, surprises, or enthusiasm
+6. How management responds to challenging questions
+
+Provide a sentiment score (1-10, where 10 is very positive) and explain your reasoning with specific examples.
+
+Transcript:
+{text}
+
+Sentiment Analysis:""",
+
+        "key_quotes": f"""
+Extract the most important and impactful quotes from this earnings call transcript. Focus on:
+1. CEO/CFO statements about performance and outlook
+2. Responses to critical analyst questions
+3. Statements about strategy, challenges, or opportunities
+4. Any surprising, notable, or forward-looking comments
+5. Key numerical guidance or targets mentioned
+
+Provide 6-10 key quotes with speaker attribution where possible. Include context for why each quote is significant.
+
+Transcript:
+{text}
+
+Key Quotes:""",
+
+        "risks_and_opportunities": f"""
+Identify key risks and opportunities mentioned in this earnings call transcript. Focus on:
+1. Business risks and challenges discussed
+2. Market opportunities and growth areas
+3. Competitive threats or advantages
+4. Regulatory or economic concerns
+5. Technology or innovation opportunities
+6. Strategic initiatives and investments
+
+Separate into RISKS and OPPORTUNITIES sections with bullet points.
+
+Transcript:
+{text}
+
+Risks and Opportunities:"""
+    }
+
+    if analysis_type not in prompts:
+        analysis_type = "summary"
+
+    # Limit text length to fit within token limits
+    text_limit = 6000 if analysis_type == "summary" else 5000
+    prompt = prompts[analysis_type].format(text=text[:text_limit])
+
+    try:
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",  # Using the more capable model
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=1200
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Analysis failed: {e}"
+
+def generate_transcript_report(sections: Dict[str, str], groq_client: Groq) -> Dict[str, str]:
+    """
+    Generate comprehensive transcript analysis report.
+
+    Args:
+        sections: Dictionary of transcript sections
+        groq_client: Groq client instance
+
+    Returns:
+        Dictionary of analysis results
+    """
+    print("📊 Generating comprehensive analysis...")
+
+    report = {}
+
+    # Get the most relevant section for analysis
+    analysis_text = ""
+    if "presentation" in sections and "questions_and_answers" in sections:
+        # Combine both sections for comprehensive analysis
+        analysis_text = sections["presentation"] + "\n\n" + sections["questions_and_answers"]
+    elif "presentation" in sections:
+        analysis_text = sections["presentation"]
+    elif "questions_and_answers" in sections:
+        analysis_text = sections["questions_and_answers"]
+    elif "full_transcript" in sections:
+        analysis_text = sections["full_transcript"][:10000]  # Limit length
+    else:
+        # Take the longest section
+        analysis_text = max(sections.values(), key=len)
+
+    # Generate different types of analysis
+    analysis_types = ["summary", "financial_insights", "sentiment_analysis", "key_quotes", "risks_and_opportunities"]
+
+    for analysis_type in analysis_types:
+        print(f"  🔍 Generating {analysis_type.replace('_', ' ')}...")
+        report[analysis_type] = analyze_transcript_with_llm(analysis_text, analysis_type, groq_client)
+        time.sleep(1)  # Rate limiting to be respectful to API
+
+    print("✅ Analysis report generation completed")
+    return report
+
+# ============================================================================
+# MAIN FUNCTIONS
+# ============================================================================
+
+def analyze_transcript_file(file_path: str, save_report: bool = True) -> Dict[str, Any]:
+    """
+    Complete analysis of earnings transcript from text file.
+
+    Args:
+        file_path: Path to transcript text file
+        save_report: Whether to save analysis report
+
+    Returns:
+        Complete analysis results
+    """
+    print("🚀 Starting earnings transcript analysis...")
+    print("=" * 60)
+
+    # Step 1: Load text file
+    print("\n📄 Step 1: Loading text file...")
+    text = load_text_file(file_path)
+
+    # Step 2: Clean the text
+    print("\n🧹 Step 2: Cleaning transcript text...")
+    cleaned_text = clean_transcript_text(text)
+
+    # Step 3: Identify transcript sections
+    print("\n🔍 Step 3: Identifying transcript sections...")
+    sections = identify_transcript_sections(cleaned_text)
+
+    # Step 4: Extract key speakers
+    print("\n👥 Step 4: Extracting key speakers...")
+    speakers = extract_key_speakers(cleaned_text)
+
+    # Step 5: Setup LLM client
+    print("\n🤖 Step 5: Setting up AI analysis...")
+    groq_client = setup_groq_client()
+
+    # Step 6: Generate comprehensive analysis
+    print("\n📊 Step 6: Generating AI analysis...")
+    analysis_report = generate_transcript_report(sections, groq_client)
+
+    # Compile results
+    results = {
+        "transcript_info": {
+            "source_file": file_path,
+            "original_length": len(text),
+            "cleaned_length": len(cleaned_text),
+            "sections": list(sections.keys()),
+            "num_speakers": len(speakers),
+            "speakers": speakers
+        },
+        "sections": sections,
+        "analysis": analysis_report
+    }
+
+    # Save report if requested
+    if save_report:
+        base_name = file_path.replace('.txt', '')
+
+        # Save JSON report
+        json_report_path = f"{base_name}_analysis_report.json"
+        with open(json_report_path, 'w', encoding='utf-8') as f:
+            json_results = {
+                "transcript_info": results["transcript_info"],
+                "analysis": results["analysis"]
+            }
+            json.dump(json_results, f, indent=2, ensure_ascii=False)
+
+        print(f"💾 JSON report saved: {json_report_path}")
+
+        # Save human-readable report
+        readable_report_path = f"{base_name}_analysis_report.txt"
+        create_readable_report(results, readable_report_path)
+
+    return results
+
+def create_readable_report(results: Dict[str, Any], output_path: str) -> None:
+    """Create a human-readable analysis report"""
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write("=" * 80 + "\n")
+        f.write("EARNINGS TRANSCRIPT ANALYSIS REPORT\n")
+        f.write("=" * 80 + "\n\n")
+
+        # Basic info
+        info = results["transcript_info"]
+        f.write(f"Source File: {info['source_file']}\n")
+        f.write(f"Original Text Length: {info['original_length']:,} characters\n")
+        f.write(f"Cleaned Text Length: {info['cleaned_length']:,} characters\n")
+        f.write(f"Sections Found: {', '.join(info['sections'])}\n")
+        f.write(f"Number of Speakers: {info['num_speakers']}\n")
+        if info['speakers']:
+            f.write(f"Key Speakers: {', '.join(info['speakers'][:15])}\n")  # Limit to 15
+            if len(info['speakers']) > 15:
+                f.write(f"... and {len(info['speakers']) - 15} more\n")
+        f.write("\n" + "=" * 80 + "\n\n")
+
+        # Analysis sections
+        analysis = results["analysis"]
+
+        section_titles = {
+            "summary": "EXECUTIVE SUMMARY",
+            "financial_insights": "FINANCIAL INSIGHTS",
+            "sentiment_analysis": "SENTIMENT ANALYSIS",
+            "key_quotes": "KEY QUOTES",
+            "risks_and_opportunities": "RISKS AND OPPORTUNITIES"
+        }
+
+        for section_name, content in analysis.items():
+            title = section_titles.get(section_name, section_name.replace('_', ' ').title())
+            f.write(f"{title}\n")
+            f.write("=" * len(title) + "\n")
+            f.write(content + "\n\n")
+
+    print(f"📖 Readable report saved: {output_path}")
+
+def quick_transcript_summary(file_path: str) -> str:
+    """Quick summary of transcript - simplified version"""
+    try:
+        # Load and clean text
+        text = load_text_file(file_path)
+        cleaned_text = clean_transcript_text(text)
+
+        # Setup client
+        groq_client = setup_groq_client()
+
+        # Get quick summary
+        summary = analyze_transcript_with_llm(cleaned_text[:8000], "summary", groq_client)
+
+        return summary
+    except Exception as e:
+        return f"Error generating summary: {e}"
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+
+def main():
+    """Main execution function"""
+    print("=" * 80)
+    print("🚀 TRANSCRIPT ANALYZER - TEXT FILE AI ANALYSIS")
+    print("=" * 80)
+
+    # Configuration - Update this with your file name
+    TEXT_FILE_PATH = "Q1-2025 Transcript AAPL.txt"
+
+    try:
+        if not os.path.exists(TEXT_FILE_PATH):
+            print(f"❌ File not found: {TEXT_FILE_PATH}")
+            print("Please ensure the text file is in the current directory.")
+
+            # List available text files
+            txt_files = [f for f in os.listdir('.') if f.endswith('.txt')]
+            if txt_files:
+                print(f"\nAvailable text files found:")
+                for i, file in enumerate(txt_files, 1):
+                    print(f"  {i}. {file}")
+            return
+
+        # Run complete analysis
+        results = analyze_transcript_file(TEXT_FILE_PATH)
+
+        # Display summary
+        print("\n" + "=" * 80)
+        print("📊 ANALYSIS COMPLETE")
+        print("=" * 80)
+
+        info = results["transcript_info"]
+        print(f"✅ Processed: {info['source_file']}")
+        print(f"📄 Text processed: {info['cleaned_length']:,} characters")
+        print(f"📑 Sections found: {len(info['sections'])}")
+        print(f"👥 Speakers identified: {info['num_speakers']}")
+
+        # Show quick preview of analysis
+     #   if "summary" in results["analysis"]:
+     #      print(f"\n📋 EXECUTIVE SUMMARY PREVIEW:")
+     #      print("-" * 50)
+     #      summary = results["analysis"]["summary"]
+     #      preview = summary[:600] + "..." if len(summary) > 600 else summary
+     #      print(preview)
+
+        base_name = TEXT_FILE_PATH.replace('.txt', '')
+        print(f"\n📁 Generated files:")
+        print(f"  • {base_name}_analysis_report.txt (readable report)")
+        print(f"  • {base_name}_analysis_report.json (structured data)")
+
+        print(f"\n🎉 Analysis completed successfully!")
+
+    except Exception as e:
+        print(f"\n❌ Analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    main()
+
+"""#DO NOT TOUCH ABOVE"""
 
