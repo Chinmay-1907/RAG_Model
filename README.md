@@ -16,47 +16,56 @@ This repository contains a comprehensive **Retrieval-Augmented Generation (RAG)*
   - `FAISS` for vector indexing  
   - `LangChain` for text splitting and document handling  
   - `groq` (LLaMA 3.3) for LLM-driven JSON extraction and analysis  
-  - `PyMuPDF` / `pdfplumber` for PDF text extraction  
-  - `openpyxl` for Excel report generation  
+  - `PyMuPDF` / `pdfplumber` for PDF text extraction
+  - `PyMuPDF`, `pdf2image`, `pytesseract`, `Pillow` for OCR  
+  - `openpyxl` for Excel model generation  
   - `pandas`, `NumPy` for data manipulation  
   - `tiktoken`, `Pydantic`, `regex` for validation and token counting
 
 ---
 
-## 🔍 Pipeline Workflow
 
-### 1. **PDF Ingestion & Cleaning**
-- Extract raw text from 10-K and transcript PDFs  
-- Clean headers, footers, and OCR artifacts  
+## 🔍 End-to-End Pipeline
 
-### 2. **Intelligent Chunking & Embedding**
-- Split cleaned text by financial statement headings and logical separators  
-- Embed chunks using MiniLM and build a FAISS vector store  
+### 1. **PDF/Text Ingestion & Cleaning**
+- Supports both PDF (with OCR fallback) and `.txt` text files  
+- Cleans headers, footers, page numbers, and OCR noise  
 
-### 3. **Hybrid Retrieval & Metric Extraction**
-- Perform similarity search with section-based boosting  
-- Generate targeted RAG prompts and call LLaMA to extract metrics in strict JSON  
+### 2. **Smart Chunking & Embedding**
+- Splits by financial statement headers and logical markers  
+- Embeds sections using MiniLM and creates FAISS index  
 
-### 4. **Excel Model Generation**
-- Parse JSON metrics into Income, Balance Sheet, and Cash Flow DataFrames  
-- Add retained earnings and revenue forecasts  
-- Export polished three-statement models to Excel with professional formatting  
+### 3. **Hybrid Semantic Retrieval**
+- Retrieves top sections with section-based boosting  
+- Optimizes for relevant financial data context  
 
-### 5. **Earnings-Call Transcript Analysis**
-- Convert transcripts to text, clean and segment into sections  
-- Detect speakers and Q&A structure  
-- Use LLaMA to produce:  
-  - Concise summaries  
-  - Financial highlights  
-  - Sentiment scores  
-  - Key quote extraction  
-  - Risks & opportunities report  
+### 4. **RAG Prompt & JSON Extraction**
+- Builds structured, token-limited RAG prompts  
+- Uses LLaMA to extract metrics as strict JSON  
+- Robust validation and fallback parsing  
+
+### 5. **Excel Model Generation**
+- Converts JSON into Income, Balance, and Cash Flow DataFrames  
+- Adds **Retained Earnings** and **Revenue Forecasting**  
+- Outputs well-formatted `.xlsx` financial model  
+
+### 6. **Transcript Intelligence Engine**
+- Segments transcript into key sections  
+- Extracts speakers and Q&A structure  
+- Generates:
+  - Executive Summary  
+  - Financial Highlights  
+  - Sentiment Score (1–10)  
+  - Key Quotes  
+  - Risks & Opportunities  
 
 ---
 
-## 📊 Results & Impact
-- **90%+ reduction** in manual data preparation and model-building time  
-- **Structured, JSON-driven** metric extraction ensures consistency and auditability  
-- **AI-driven summaries** empower rapid decision-making for analysts and executives  
+
+## 📊 Results & Benefits
+- **80–90% automation** of analyst prep from raw filings  
+- **Traceable JSON** improves audit and validation workflows  
+- **Instant Excel reports** for Income, Balance, Cash Flow  
+- **Transcript analysis** gives analysts key highlights in seconds  
 
 ---
